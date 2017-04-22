@@ -7,4 +7,5 @@ o.*
 *.out
 tests/*.err
 pruebas
-
+dist
+src/.*.swp
