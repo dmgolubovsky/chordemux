@@ -94,7 +94,6 @@ handleChords = do
   iss <- gets is
   let diff = round $ fromIntegral (cdtt - pstt) / 1000000
   let delay = diff * 10
-  lift $ putStrLn $ show (IS.size iss) ++ "/" ++ show diff
   stt <- gets status
   case stt of
     Pinged -> do
@@ -108,12 +107,10 @@ handleChords = do
         sendPing
       else do
         if IS.size iss > 0 then do
-          lift $ putStrLn "play chord"
           modify (\s -> s {status = ChordOn })
           crr <- gets cr
           let chints = toIntervals iss
               mboc = routeChord crr (Intervals chints)
-          lift $ putStrLn $ show chints
           case mboc of
             Nothing -> return ()
             Just oc -> do
@@ -124,8 +121,6 @@ handleChords = do
               lift $ playChord hh cc (outchan oc) pc True
               loop
         else do
-          lift $ putStrLn "stop chord"
-          modify (\s -> s {status = ChordOff })
           cancelChord
     _ -> return ()
   loop
@@ -163,7 +158,7 @@ cancelChord = do
   ochan <- gets ochan
   oss <- gets os
   lift $ playChord hh cc ochan oss False
-  modify (\s -> s {is = IS.empty, os = IS.empty})
+  modify (\s -> s {is = IS.empty, os = IS.empty, status = ChordOff })
   loop
 
 sendPing = do

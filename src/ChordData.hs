@@ -9,7 +9,7 @@ type Interval = Int
 -- Received chords are matched against the list of input chords to find the dispatch
 -- rules. Additionally, an entry matching any chord may be provided.
 
-data InputChord = AnyChord | Intervals [Interval] | Shorthand String deriving (Eq, Ord)
+data InputChord = AnyChord | Intervals [Interval] | Shorthand String deriving (Show, Eq, Ord)
 
 -- Output chord which is represented by the destination channel, and notes to be sent.
 -- Not all notes of the matched chord may need to be sent, it may be an unrelated absolute
@@ -21,12 +21,12 @@ data NoteOut = AbsNote Pitch |
                ChordNote {
                  idx :: Int,      -- 1-based
                  offset :: Int
-               }
+               } deriving (Show)
 
 data OutputChord = OutputChord {
   outchan :: Channel,
   outnotes :: [NoteOut]
-}
+} deriving (Show)
 
 -- Routing rules represented as a map of input to output chords.
 

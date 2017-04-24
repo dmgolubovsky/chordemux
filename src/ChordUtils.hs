@@ -57,6 +57,13 @@ findInversions dch =
       doinv ch (x:xs) = let ch' = nextinv ch in ch' : doinv ch' xs
   in dch' : doinv dch' invs
 
+-- Find an inversions of the chord given in intervals.
+
+findInversionsI :: [Interval] -> [[Interval]]
+
+findInversionsI is = Prelude.map toIntervals $ fis is where
+  fis = findInversions . fromIntervals 0
+
 -- Find all intervals between consecutive notes in a chord.
 
 toIntervals :: IntSet -> [Interval]
@@ -69,6 +76,14 @@ toIntervals is =
       toi [x] = []
       toi (x:y:ys) = (y - x) : (toi (y:ys))
     in toi sorted
+
+-- Build a chord from intervals given the root note.
+
+fromIntervals :: Int -> [Interval] -> IntSet
+
+fromIntervals r is = IS.fromList $ r : (fi r is) where
+  fi r [] = []
+  fi r (x:xs) = (r + x) : fi (r + x) xs
 
 -- Find how to output a chord given the set of routing rules. If AnyChord entry exists
 -- in the map, it is given a last chance.

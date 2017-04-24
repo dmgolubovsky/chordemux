@@ -3,6 +3,7 @@ import ChordUtils
 import EventUtils
 import Common (handleExceptionCont)
 import DispatchLoop
+import ChordMatrix
 
 import qualified Sound.ALSA.Sequencer.Connect as Connect
 import qualified Sound.ALSA.Sequencer.Address as Addr
@@ -47,14 +48,7 @@ mainIO h pin pout = do
   let connout = Connect.toSubscribers (Addr.Cons c pout)
       connin = Connect.toSubscribers (Addr.Cons c pin)
 
-  let cr = DM.fromList [
-             (Intervals [4, 3, 5, 4, 3], OutputChord (Event.Channel 5) [AllNotes]),
-             (Intervals [3, 5], OutputChord (Event.Channel 8) 
-                      [ChordNote {idx=1, offset=0}, ChordNote {idx=3, offset=1}]),
-             (Intervals [5, 3], OutputChord (Event.Channel 7) [AllNotes]),
-             (Intervals [4, 5], OutputChord (Event.Channel 7) [AllNotes])
-           ]
+  dispatchLoop h (connout, connin) (Event.Channel 0) chordMatrix
 
-  dispatchLoop h (connout, connin) (Event.Channel 0) cr
 
 
