@@ -26,4 +26,3 @@ executable chordemux
   hs-source-dirs:      src
   ghc-options:         -threaded
   default-language:    Haskell2010
---  default-extensions:  ScopedTypeVariables
