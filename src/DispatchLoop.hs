@@ -29,8 +29,10 @@ data LoopStatus = LoopStatus {
   cr :: ChordRouting,
   is :: IS.IntSet,
   os :: IS.IntSet,
+  pvl :: Int,
   ochan :: Event.Channel,
   dt :: Integer,
+  diff :: Integer,
   age :: Integer,
   status :: DispStatus,
   ping :: Maybe Event.T
@@ -40,7 +42,7 @@ getps :: IO Integer
 
 getps = getCurrentTime >>= return . diffTimeToPicoseconds . utctDayTime
 
-data DispStatus = ChordOff | Pinged | Aging Int | ChordOn deriving (Eq, Ord)
+data DispStatus = ChordOff | Pinged | Aging Int | ChordOn Int deriving (Show, Eq, Ord)
 
 dispatchLoop :: SndSeq.T SndSeq.DuplexMode -> 
                 (Connect.T, Connect.T) -> 
@@ -56,9 +58,11 @@ dispatchLoop h (c, ci) chan cr = do
     chan = chan,
     cr = cr,
     is = IS.empty,
+    pvl = 0,
     os = IS.empty,
     ochan = Event.Channel (-1),
     dt = dtt,
+    diff = 0,
     age = 0,
     status = ChordOff,
     ping = Nothing
@@ -89,30 +93,71 @@ loop' e = do
       loop
 
 handleChords = do
-  cdtt <- lift getps
-  pstt <- gets dt
   iss <- gets is
-  let diff = round $ fromIntegral (cdtt - pstt) / 1000000
-  let delay = diff * 10
+  ddff <- gets diff
+  let dxff = round $ fromIntegral ddff / 1000000
   stt <- gets status
+  hh <- gets h
+  pvll <- gets pvl
+  modify (\s -> s {pvl = IS.size iss})
   case stt of
-    Pinged -> do
-      modify (\s -> s {status = Aging delay})
-      lift $ threadDelay delay
-      sendPing
-      loop
+    ChordOn d -> do
+      case (IS.size iss `compare` pvll) of
+        GT -> do
+          lift $ putStrLn "chord growing while playing ignore"
+          sendPingDelay d
+          loop
+        LT -> do
+          lift $ putStrLn "chord dropping"
+          modify (\s -> s {status = ChordOff, is = IS.empty})
+          cancelChord
+          loop
+        EQ -> do
+          lift $ putStrLn ("chord on " ++ (show $ IS.toList iss))
+          modify (\s -> s {status = ChordOn d})
+          sendPingDelay d
+          loop
+    Pinged -> case IS.size iss of
+      _ | IS.size iss < pvll -> do
+        modify (\s -> s {status = ChordOff, is = IS.empty})
+        loop
+      0 -> do
+        lift $ putStrLn "chord empty"
+        modify (\s -> s {status = ChordOff})
+        cancelChord
+        loop
+      1 -> do
+        lift $ putStrLn ("single note need more " ++ show dxff)
+        modify (\s -> s {status = ChordOff})
+        loop
+      _ | IS.size iss >= 2 -> do
+        lift $ putStrLn ("two or more notes calibrating delay " ++ show dxff)
+        let delay = dxff * 10
+        modify (\s -> s {status = Aging delay})
+        sendPingDelay delay
+        loop
     Aging d -> do
-      if diff < d then do
-        lift $ threadDelay delay
-        sendPing
-      else do
-        if IS.size iss > 0 then do
-          modify (\s -> s {status = ChordOn })
+      case (IS.size iss `compare` pvll) of
+        GT -> do
+          lift $ putStrLn "chord growing"
+          sendPingDelay d
+          loop
+        LT -> do
+          lift $ putStrLn "chord dropping"
+          modify (\s -> s {status = ChordOff, is = IS.empty})
+          cancelChord
+          loop
+        EQ -> do
+          lift $ putStrLn ("chord mature " ++ (show $ IS.toList iss))
+          modify (\s -> s {status = ChordOn d})
+          sendPingDelay d
           crr <- gets cr
           let chints = toIntervals iss
               mboc = routeChord crr (Intervals chints)
           case mboc of
-            Nothing -> return ()
+            Nothing -> do
+              modify (\s -> s {status = ChordOff, is = IS.empty })
+              loop
             Just oc -> do
               let pc = buildChord iss oc
               modify (\s -> s {os = pc, ochan = outchan oc})
@@ -120,9 +165,7 @@ handleChords = do
               hh <- gets h
               lift $ playChord hh cc (outchan oc) pc True
               loop
-        else do
-          cancelChord
-    _ -> return ()
+    _ -> loop
   loop
 
 processNote ne note = do
@@ -142,12 +185,18 @@ processNote ne note = do
               (Event.NoteOff, _) -> IS.delete (fromIntegral pitch) iss
               _ -> iss
   cdtt <- lift getps
+  pdtt <- gets dt
   modify (\s -> s {is = is', dt = cdtt})
+  case IS.size is' of
+    0 -> return ()
+    1 -> modify (\s -> s {diff = 0})
+    _ -> modify (\s -> s {diff = cdtt - pdtt})
   stt <- gets status
   case stt of
-    _ | stt /= Pinged -> do
-      sendPing
+    _ | stt `elem` [ChordOff] -> do
+      sendPingDelay 0
       modify (\s -> s {status = Pinged })
+      return ()
     _ -> return ()
   loop
 
@@ -161,10 +210,20 @@ cancelChord = do
   modify (\s -> s {is = IS.empty, os = IS.empty, status = ChordOff })
   loop
 
-sendPing = do
+sendPingDelay d = do
   hh <- gets h
-  gets ping >>= return . maybeToList >>= mapM_ (lift . (Event.outputDirect hh))
-  lift $ Event.drainOutput hh
+  p <- gets ping
+  lift $ forkOS $ do
+    threadDelay d
+    sendPing hh p
+
+sendPing hh ping = do 
+  case ping of
+    Just p -> do
+      Event.outputDirect hh p
+      return ()
+    _ -> return ()
+  Event.drainOutput hh
   return ()
 
 

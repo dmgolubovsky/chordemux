@@ -29,6 +29,7 @@ playChord h conn chan is on = do
                                     (Event.Velocity 64)
       noo = if on then Event.NoteOn else Event.NoteOff
       evts = Prelude.map (Event.forConnection conn . Event.NoteEv noo . note) $ IS.toList is
+  putStrLn (show noo ++ " / " ++ show chan ++ " / " ++ show is)
   mapM_ (Event.outputDirect h) evts
 
 -- Transpose all notes in the chord to be no more than two octaves higher than the lowest note
