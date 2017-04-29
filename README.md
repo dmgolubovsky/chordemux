@@ -12,7 +12,7 @@ Chordemux is written in Haskell and is compilable as usual Cabal project. Below 
 git clone https://github.com/dmgolubovsky/chordemux.git
 ~~~
 
-* Update the packages database.
+* Change to the cloned repository directory, and update the Cabal packages database.
 
 ~~~
 cabal update
