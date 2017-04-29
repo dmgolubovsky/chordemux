@@ -37,3 +37,5 @@ cabal run
 ~~~
 
 You will need to use a patchbay program like Claudia to connect the input and output ports of running chordemux with the MIDI source device (a keyboard or a sequencer), and with the recipients (QMidiArp or other sequencer/arpeggiator/drum program etc.)
+
+These building instructions were tested on an Ubuntu 16.04 fresh Docker image.
