@@ -12,6 +12,8 @@ import GHC.Word
 import Data.Maybe
 import Data.Time.Clock
 
+import Numeric.Statistics
+
 import Control.Concurrent
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
@@ -33,6 +35,7 @@ data LoopStatus = LoopStatus {
   ochan :: Event.Channel,
   dt :: Integer,
   diff :: Integer,
+  tsamples :: IS.IntSet,
   age :: Integer,
   status :: DispStatus,
   ping :: Maybe Event.T
@@ -63,6 +66,7 @@ dispatchLoop h (c, ci) chan cr = do
     ochan = Event.Channel (-1),
     dt = dtt,
     diff = 0,
+    tsamples = IS.empty,
     age = 0,
     status = ChordOff,
     ping = Nothing
@@ -132,7 +136,8 @@ handleChords = do
         loop
       _ | IS.size iss >= 2 -> do
         lift $ putStrLn ("two or more notes calibrating delay " ++ show dxff)
-        let delay = dxff * 10
+        ndxff <- compStats dxff
+        let delay = ndxff * 10
         modify (\s -> s {status = Aging delay})
         sendPingDelay delay
         loop
@@ -226,4 +231,23 @@ sendPing hh ping = do
   Event.drainOutput hh
   return ()
 
-
+compStats d = do
+  samples <- gets tsamples
+  let samples' = IS.insert d samples
+  let st = map fromIntegral $ IS.toList samples'
+  let tmean = mean st
+  let tstd = stddev st
+  let outlrs = filter (> (tmean + 3 * tstd)) st
+  let keep = if length st > 10 
+               then filter (<= (tmean + 3 * tstd)) st 
+               else st
+  lift $ putStrLn ("size " ++ show (IS.size samples') ++ 
+                   " mean " ++ show tmean ++ 
+                   " std " ++ show tstd ++
+                   " outliers " ++ show outlrs);
+  let newmean = mean keep
+  let newsamp = IS.fromList $ map round keep
+  let newsamp' = if IS.size newsamp > 50 then IS.delete (IS.findMax newsamp) newsamp else newsamp
+  modify (\s -> s {tsamples = newsamp'})
+  lift $ putStrLn ("new mean " ++ show newmean)
+  return $ round newmean
