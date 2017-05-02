@@ -23,9 +23,14 @@ data NoteOut = AbsNote Pitch |
                  offset :: Int
                } deriving (Show)
 
+-- How to play the chord. Chords may go to multiple ports at once, so the 
+-- 'also' field serves as a chain link to the next port to output the chord.
+
 data OutputChord = OutputChord {
+  outport :: String,
   outchan :: Channel,
-  outnotes :: [NoteOut]
+  outnotes :: [NoteOut],
+  also :: Maybe OutputChord
 } deriving (Show)
 
 -- Routing rules represented as a map of input to output chords.

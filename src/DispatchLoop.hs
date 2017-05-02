@@ -7,10 +7,14 @@ import qualified Sound.ALSA.Sequencer.Port as Port
 import qualified Sound.ALSA.Sequencer.Event as Event
 import qualified Sound.ALSA.Sequencer as SndSeq
 
+import qualified Data.List as DL
+import qualified Data.Set as DS
+import qualified Data.Map as DM
 import qualified Data.IntSet as IS
 import GHC.Word
 import Data.Maybe
 import Data.Time.Clock
+import Control.Monad
 
 import Numeric.Statistics
 
@@ -22,59 +26,45 @@ import Control.Monad.Trans.State.Lazy
 import ChordData
 import ChordUtils
 import EventUtils
-
-data LoopStatus = LoopStatus {
-  h :: SndSeq.T SndSeq.DuplexMode,
-  c :: Connect.T,
-  ci :: Connect.T,
-  chan :: Event.Channel,
-  cr :: ChordRouting,
-  is :: IS.IntSet,
-  os :: IS.IntSet,
-  pvl :: Int,
-  ochan :: Event.Channel,
-  dt :: Integer,
-  diff :: Integer,
-  tsamples :: IS.IntSet,
-  age :: Integer,
-  status :: DispStatus,
-  ping :: Maybe Event.T
-}
+import LoopConfig
 
 getps :: IO Integer
 
 getps = getCurrentTime >>= return . diffTimeToPicoseconds . utctDayTime
 
-data DispStatus = ChordOff | Pinged | Aging Int | ChordOn Int deriving (Show, Eq, Ord)
-
 dispatchLoop :: SndSeq.T SndSeq.DuplexMode -> 
-                (Connect.T, Connect.T) -> 
+                Connect.T -> 
                 Event.Channel -> 
                 ChordRouting -> IO ()
 
-dispatchLoop h (c, ci) chan cr = do
+dispatchLoop h ci chan cr = do
   dtt <- getps
   evalStateT loop LoopStatus {
     h = h,
-    c = c,
     ci = ci,
     chan = chan,
     cr = cr,
     is = IS.empty,
     pvl = 0,
-    os = IS.empty,
-    ochan = Event.Channel (-1),
+    os = DS.empty,
     dt = dtt,
     diff = 0,
     tsamples = IS.empty,
     age = 0,
     status = ChordOff,
-    ping = Nothing
+    ping = Nothing,
+    portmap = DM.empty
 }
 
 loop :: StateT LoopStatus IO ()
 
 loop = do
+  ports <- gets cr >>= (return . listPorts)
+  pm <- gets portmap
+  let newports = ports DL.\\ DM.keys pm
+  hh <- gets h
+  newconns <- lift $ mapM (makePort hh) newports
+  modify (\s -> s {portmap = DM.union pm (DM.fromList $ zip newports newconns)})
   cn <- gets chan
   pn <- gets ping
   e <- gets h >>= lift . Event.input
@@ -163,26 +153,36 @@ handleChords = do
             Nothing -> do
               modify (\s -> s {status = ChordOff, is = IS.empty })
               loop
-            Just oc -> do
-              let pc = buildChord iss oc
-              modify (\s -> s {os = pc, ochan = outchan oc})
-              cc <- gets c
-              hh <- gets h
-              lift $ playChord hh cc (outchan oc) pc True
+            _ -> do
+              playChords mboc
               loop
     _ -> loop
   loop
 
+playChords Nothing = loop
+
+playChords (Just oc) = do
+  pm <- gets portmap
+  let mbcn = DM.lookup (outport oc) pm
+  case mbcn of
+    Nothing -> return ()
+    Just cc -> do
+      iss <- gets is
+      let pc = buildChord iss oc
+      oss <- gets os
+      modify (\s -> s {os = DS.insert (cc, outchan oc, pc) oss})
+      hh <- gets h
+      lift $ playChord hh cc (outchan oc) pc True
+  playChords $ also oc
+
 processNote ne note = do
   cn <- gets chan
-  cc <- gets c
   hh <- gets h
   let pitch = Event.unPitch $ Event.noteNote note
       velo = Event.unVelocity $ Event.noteVelocity note
   let note' = Event.simpleNote cn 
                                (Event.Pitch pitch) 
                                (Event.noteVelocity note)
-  let eo = Event.forConnection cc $ Event.NoteEv ne note'
   iss <- gets is
   let is' = compactChord $ case (ne, velo) of
               (Event.NoteOn, 0) -> IS.delete (fromIntegral pitch) iss
@@ -207,12 +207,10 @@ processNote ne note = do
 
 
 cancelChord = do
-  cc <- gets c
   hh <- gets h
-  ochan <- gets ochan
   oss <- gets os
-  lift $ playChord hh cc ochan oss False
-  modify (\s -> s {is = IS.empty, os = IS.empty, status = ChordOff })
+  forM_ oss $ \(cc, ochan, is) -> lift $ playChord hh cc ochan is False
+  modify (\s -> s {is = IS.empty, os = DS.empty, status = ChordOff })
   loop
 
 sendPingDelay d = do
