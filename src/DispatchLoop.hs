@@ -13,7 +13,7 @@ import qualified Data.Map as DM
 import qualified Data.IntSet as IS
 import GHC.Word
 import Data.Maybe
-import Data.Time.Clock
+import Data.Time.Clock.POSIX
 import Control.Monad
 
 import Numeric.Statistics
@@ -27,18 +27,24 @@ import ChordData
 import ChordUtils
 import EventUtils
 import LoopConfig
+import ChordMatrix
 
-getps :: IO Integer
+getus :: IO Integer
 
-getps = getCurrentTime >>= return . diffTimeToPicoseconds . utctDayTime
+getus = (*1000000) `fmap` getPOSIXTime >>= return . round
+
+loadcr :: String -> IO ChordRouting
+
+loadcr _ = return chordMatrix
 
 dispatchLoop :: SndSeq.T SndSeq.DuplexMode -> 
                 Connect.T -> 
                 Event.Channel -> 
-                ChordRouting -> IO ()
+                String -> IO ()
 
-dispatchLoop h ci chan cr = do
-  dtt <- getps
+dispatchLoop h ci chan s = do
+  dtt <- getus
+  cr <- loadcr s
   evalStateT loop LoopStatus {
     h = h,
     ci = ci,
@@ -89,7 +95,7 @@ loop' e = do
 handleChords = do
   iss <- gets is
   ddff <- gets diff
-  let dxff = round $ fromIntegral ddff / 1000000
+  let dxff = fromIntegral ddff
   stt <- gets status
   hh <- gets h
   pvll <- gets pvl
@@ -189,7 +195,7 @@ processNote ne note = do
               (Event.NoteOn, _) -> IS.insert (fromIntegral pitch) iss
               (Event.NoteOff, _) -> IS.delete (fromIntegral pitch) iss
               _ -> iss
-  cdtt <- lift getps
+  cdtt <- lift getus
   pdtt <- gets dt
   modify (\s -> s {is = is', dt = cdtt})
   case IS.size is' of

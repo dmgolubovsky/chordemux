@@ -42,8 +42,8 @@ mainIO h pin = do
   c <- Client.getId h
   putStrLn ("Created sequencer with id: " ++ show c)
   let connin = Connect.toSubscribers (Addr.Cons c pin)
-
-  dispatchLoop h connin (Event.Channel 0) chordMatrix
+  let dl = dispatchLoop h connin (Event.Channel 0)
+  dl "xxx"
 
 
 
