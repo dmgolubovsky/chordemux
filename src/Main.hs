@@ -5,6 +5,8 @@ import Common (handleExceptionCont)
 import DispatchLoop
 import ChordMatrix
 
+import Paths_chordemux
+
 import qualified Sound.ALSA.Sequencer.Connect as Connect
 import qualified Sound.ALSA.Sequencer.Address as Addr
 import qualified Sound.ALSA.Sequencer.Client as Client
@@ -22,7 +24,10 @@ import System.Environment (getArgs, )
 import Data.Bits
 import Data.List
 import Data.Maybe
+import Data.Version
 import Data.Map as DM
+
+import WithCli
 
 import qualified Data.IntSet as IS
 
@@ -40,10 +45,14 @@ main = handleExceptionCont $ do
 mainIO :: SndSeq.T SndSeq.DuplexMode -> Port.T -> IO ()
 mainIO h pin = do
   c <- Client.getId h
-  putStrLn ("Created sequencer with id: " ++ show c)
   let connin = Connect.toSubscribers (Addr.Cons c pin)
-  let dl = dispatchLoop h connin (Event.Channel 0)
-  dl "xxx"
+  let dl = dispatchLoop h connin
+  withCliModified mods dl
 
-
+mods = [
+  AddVersionFlag $ showVersion version,
+  AddShortOption "channel" 'C',
+  AddOptionHelp "channel" "MIDI channel to receive messages on",
+  AddOptionHelp "config" "configuration file in YAML format",
+  AddShortOption "config" 'f']
 

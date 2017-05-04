@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+
 module DispatchLoop (dispatchLoop) where
 
 import qualified Sound.ALSA.Sequencer.Connect as Connect
@@ -29,26 +32,32 @@ import EventUtils
 import LoopConfig
 import ChordMatrix
 
+import WithCli
+
+data Options = Options {
+  channel :: Maybe Int,
+  config :: Maybe String
+} deriving (Show, Generic, HasArguments)
+
 getus :: IO Integer
 
 getus = (*1000000) `fmap` getPOSIXTime >>= return . round
 
-loadcr :: String -> IO ChordRouting
+loadcr :: Maybe String -> IO ChordRouting
 
-loadcr _ = return chordMatrix
+loadcr f = return chordMatrix
 
 dispatchLoop :: SndSeq.T SndSeq.DuplexMode -> 
                 Connect.T -> 
-                Event.Channel -> 
-                String -> IO ()
+                Options -> IO ()
 
-dispatchLoop h ci chan s = do
+dispatchLoop h ci Options {channel = chan, config = s} = do
   dtt <- getus
   cr <- loadcr s
   evalStateT loop LoopStatus {
     h = h,
     ci = ci,
-    chan = chan,
+    chan = Event.Channel $ fromIntegral $ fromMaybe 0 chan,
     cr = cr,
     is = IS.empty,
     pvl = 0,
