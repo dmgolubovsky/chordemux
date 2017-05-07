@@ -1,0 +1,20 @@
+# A sample config for Chordemux with basic chord mappings.
+
+# Minor chord root position
+
+3-4:
+        Rhythm:  All/0
+        Bass:    1+0 2-3 3+1/0
+        Drums:   $20/0
+
+# Minor chord first inversion
+
+4-5:        
+        Rhythm:  All/1
+        Bass:    1+0/0
+
+Any:
+        Rhythm:  All/2
+        Bass:    1+0/0
+
+       

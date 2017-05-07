@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module DispatchLoop (dispatchLoop) where
 
@@ -21,6 +22,7 @@ import Control.Monad
 
 import Numeric.Statistics
 
+import Control.Exception
 import Control.Concurrent
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
@@ -45,7 +47,10 @@ getus = (*1000000) `fmap` getPOSIXTime >>= return . round
 
 loadcr :: Maybe String -> IO ChordRouting
 
-loadcr f = return chordMatrix
+loadcr Nothing = return chordMatrix
+loadcr (Just f) = tryLoad f `catch` \(e :: SomeException) -> do
+  putStrLn $ show e
+  return chordMatrix
 
 dispatchLoop :: SndSeq.T SndSeq.DuplexMode -> 
                 Connect.T -> 
