@@ -9,9 +9,14 @@ allNotesOff Event.Controller
             (Event.Ctrl {Event.ctrlParam = Event.Parameter {Event.unParameter = 123}}) = True
 allNotesOff _ _ = False
 
+-- Test if this is a custom message we send for checking config
+
+ckcfgEvent (Event.CustomEv Event.User1 _) = True
+ckcfgEvent _ = False
+
 -- Test if this is a custom message we send for pinging
 
-pingEvent (Event.CustomEv _ _) = True
+pingEvent (Event.CustomEv Event.User0 _) = True
 pingEvent _ = False
 
 -- Extract channel number from a note or control event.

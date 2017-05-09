@@ -17,6 +17,7 @@ import qualified Data.Map as DM
 import qualified Data.IntSet as IS
 import GHC.Word
 import Data.Maybe
+import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Control.Monad
 
@@ -45,12 +46,13 @@ getus :: IO Integer
 
 getus = (*1000000) `fmap` getPOSIXTime >>= return . round
 
-loadcr :: Maybe String -> IO ChordRouting
+loadcr :: Maybe String -> IO (ChordRouting, Maybe UTCTime)
 
-loadcr Nothing = return chordMatrix
+loadcr Nothing = return (chordMatrix, Nothing)
 loadcr (Just f) = tryLoad f `catch` \(e :: SomeException) -> do
   putStrLn $ show e
-  return chordMatrix
+  cfgt <- getCfgTime f
+  return (chordMatrix, cfgt)
 
 dispatchLoop :: SndSeq.T SndSeq.DuplexMode -> 
                 Connect.T -> 
@@ -58,7 +60,7 @@ dispatchLoop :: SndSeq.T SndSeq.DuplexMode ->
 
 dispatchLoop h ci Options {channel = chan, config = s} = do
   dtt <- getus
-  cr <- loadcr s
+  (cr, mbcfgt) <- loadcr s
   evalStateT loop LoopStatus {
     h = h,
     ci = ci,
@@ -73,6 +75,9 @@ dispatchLoop h ci Options {channel = chan, config = s} = do
     age = 0,
     status = ChordOff,
     ping = Nothing,
+    ckcfg = Nothing,
+    cfgtime = mbcfgt,
+    cfgpath = s,
     portmap = DM.empty
 }
 
@@ -90,12 +95,14 @@ loop = do
   e <- gets h >>= lift . Event.input
   case eventChannel e of
     Nothing | pingEvent (Event.body e) -> handleChords
+    Nothing | ckcfgEvent (Event.body e) -> checkConfig
     Just ec | ec == cn -> do
       if isNothing pn then (do
         let pn' = e {Event.body = Event.CustomEv Event.User0 Event.customZero}
-        modify (\s -> s {ping = Just pn'}))
-      else do
-        return ()
+        let ck' = e {Event.body = Event.CustomEv Event.User1 Event.customZero}
+        modify (\s -> s {ping = Just pn', ckcfg = Just ck'})
+        sendPingDelay' ckcfg 1000000)
+      else return ()
       loop' e
     _ -> loop
   
@@ -105,6 +112,32 @@ loop' e = do
     Event.NoteEv ne note -> processNote ne note
     _ -> do
       loop
+
+checkConfig = do
+  lift $ putStrLn "checking config"
+  cfgp <- gets cfgpath
+  cfgt <- gets cfgtime
+  case (cfgp, cfgt) of
+    (Just fp, Just ft) -> do
+      mbnwt <- lift $ getCfgTime fp
+      case mbnwt of
+        Just nwt -> do
+          lift $ putStrLn ("path " ++ fp ++ " mod time " ++ show ft ++ " new time " ++ show nwt)
+          if nwt > ft 
+            then do
+              crr <- gets cr
+              (ncr, mbxx) <- lift (tryLoad fp `catch` 
+                                    (\(_::SomeException) -> return (crr, Nothing)))
+              let sucf = case mbxx of
+                           Just _ -> "success"
+                           Nothing -> "failure"
+              lift $ putStrLn ("reload config " ++ sucf)
+              modify (\s -> s {cr = ncr, cfgtime = Just nwt})
+            else return ()
+          sendPingDelay' ckcfg 1000000
+          loop
+        _ -> loop
+    _ -> loop
 
 handleChords = do
   iss <- gets is
@@ -233,12 +266,16 @@ cancelChord = do
   modify (\s -> s {is = IS.empty, os = DS.empty, status = ChordOff })
   loop
 
-sendPingDelay d = do
+sendPingDelay d = sendPingDelay' ping d
+
+sendPingDelay' ppp d = do
+  lift $ putStrLn ("set ping " ++ show d)
   hh <- gets h
-  p <- gets ping
+  p <- gets ppp
   lift $ forkOS $ do
     threadDelay d
     sendPing hh p
+  return ()
 
 sendPing hh ping = do 
   case ping of

@@ -3,18 +3,22 @@
 # Minor chord root position
 
 3-4:
-        Rhythm:  All/0
-        Bass:    1+0 2-3 3+1/0
-        Drums:   $20/0
+        Rhythm:  1+0/0
+
+# Minor chord second inversion                
+
+5-3:
+        Rhythm:  2+0/1
 
 # Minor chord first inversion
 
 4-5:        
-        Rhythm:  All/1
-        Bass:    1+0/0
+        Rhythm:  3+0/2
+
+4-3:
+        Rhythm:  1+0/3
 
 Any:
-        Rhythm:  All/2
-        Bass:    1+0/0
+        Rhythm:  1+0/16
 
        

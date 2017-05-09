@@ -16,6 +16,9 @@ import Control.Monad
 import qualified Data.Set as DS
 import qualified Data.Map as DM
 import qualified Data.IntSet as IS
+import Data.Time.Clock
+
+import System.Directory
 
 import Data.Yaml.Config as Y
 
@@ -44,8 +47,18 @@ data LoopStatus = LoopStatus {
   age :: Integer,
   status :: DispStatus,
   ping :: Maybe Event.T,
+  ckcfg :: Maybe Event.T,
+  cfgpath :: Maybe String,
+  cfgtime :: Maybe UTCTime,
   portmap :: DM.Map String Connect.T
 }
+
+-- Given config file path, return its modification time or nothing if any error
+
+getCfgTime :: String -> IO (Maybe UTCTime)
+
+getCfgTime fp = 
+  (getModificationTime fp >>= return . Just) `catch` (\(_::SomeException) -> return Nothing)
 
 -- List all ports defined by the chord routing rules.
 
@@ -70,7 +83,7 @@ makePort h s = do
 
 -- Try to load a YAML config file but in case of error throw an exception.
 
-tryLoad :: String -> IO ChordRouting
+tryLoad :: String -> IO (ChordRouting, Maybe UTCTime)
 
 tryLoad c = do
   cfg <- load c
@@ -97,7 +110,8 @@ tryLoad c = do
       Nothing -> fail ("could not parse output notes for chord " ++ show a ++ " port " ++ show b)
     let prtout = zip ports (map fromJust ontch)
     mkChordOut (unpack k) prtout
-  return $ DM.fromList $ zip ichords ochords
+  cfgt <- getCfgTime c
+  return $ (DM.fromList $ zip ichords ochords, cfgt)
 
 mkChordOut :: String -> [(String, ([NoteOut], Event.Channel))] -> IO OutputChord
 
