@@ -54,5 +54,7 @@ mods = [
   AddShortOption "channel" 'C',
   AddOptionHelp "channel" "MIDI channel to receive messages on",
   AddOptionHelp "config" "configuration file in YAML format",
+  AddOptionHelp "cmdelay" "delay multiplier while chord is maturing",
+  AddOptionHelp "codelay" "delay multiplier while chord is on",
   AddShortOption "config" 'f']
 

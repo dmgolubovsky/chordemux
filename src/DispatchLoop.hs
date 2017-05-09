@@ -39,7 +39,9 @@ import WithCli
 
 data Options = Options {
   channel :: Maybe Int,
-  config :: Maybe String
+  config :: Maybe String,
+  cmdelay :: Maybe Int,
+  codelay :: Maybe Int
 } deriving (Show, Generic, HasArguments)
 
 getus :: IO Integer
@@ -58,7 +60,7 @@ dispatchLoop :: SndSeq.T SndSeq.DuplexMode ->
                 Connect.T -> 
                 Options -> IO ()
 
-dispatchLoop h ci Options {channel = chan, config = s} = do
+dispatchLoop h ci opt@Options {channel = chan, config = s} = do
   dtt <- getus
   (cr, mbcfgt) <- loadcr s
   evalStateT loop LoopStatus {
@@ -78,6 +80,8 @@ dispatchLoop h ci Options {channel = chan, config = s} = do
     ckcfg = Nothing,
     cfgtime = mbcfgt,
     cfgpath = s,
+    cmdly = fromMaybe 10 (cmdelay opt),
+    codly = fromMaybe 10 (codelay opt),
     portmap = DM.empty
 }
 

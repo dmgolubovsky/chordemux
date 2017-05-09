@@ -50,6 +50,8 @@ data LoopStatus = LoopStatus {
   ckcfg :: Maybe Event.T,
   cfgpath :: Maybe String,
   cfgtime :: Maybe UTCTime,
+  cmdly :: Int,
+  codly :: Int,
   portmap :: DM.Map String Connect.T
 }
 
