@@ -25,6 +25,7 @@ import Data.Yaml.Config as Y
 import Control.Exception
 
 import Text.ParserCombinators.HuttonMeijer
+import Control.Monad.Trans.State.Lazy
 
 import qualified Data.ByteString.Lazy as B
 
@@ -39,7 +40,7 @@ data LoopStatus = LoopStatus {
   chan :: Event.Channel,
   cr :: ChordRouting,
   is :: IS.IntSet,
-  os :: DS.Set (Connect.T, Event.Channel, IS.IntSet),
+  os :: DS.Set (String, Connect.T, Event.Channel, IS.IntSet),
   pvl :: Int,
   dt :: Integer,
   diff :: Integer,
@@ -52,8 +53,16 @@ data LoopStatus = LoopStatus {
   cfgtime :: Maybe UTCTime,
   cmdly :: Int,
   codly :: Int,
-  portmap :: DM.Map String Connect.T
+  portmap :: DM.Map String Connect.T,
+  statmsg :: String,
+  statchg :: Bool
 }
+
+-- Set status message
+
+updstat :: String -> StateT LoopStatus IO ()
+
+updstat msg = modify (\s -> s {statmsg = msg, statchg = True})
 
 -- Given config file path, return its modification time or nothing if any error
 
@@ -77,7 +86,6 @@ listPorts cr = nub $ lp $ DM.elems cr where
 makePort :: SndSeq.T SndSeq.DuplexMode -> String -> IO Connect.T
 
 makePort h s = do
-  putStrLn ("create port " ++ s)
   pout <- Port.createSimple h s
     (Port.caps [Port.capRead, Port.capSubsRead]) Port.typeMidiGeneric
   c <- Client.getId h

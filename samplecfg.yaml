@@ -4,21 +4,32 @@
 
 3-4:
         Rhythm:  1+0/0
+        Bass: 1-12/0
 
 # Minor chord second inversion                
 
 5-3:
         Rhythm:  2+0/1
+        Bass: 2-12/0
 
 # Minor chord first inversion
 
 4-5:        
-        Rhythm:  3+0/2
+        Rhythm:  All/2
+        Bass: 3-24/0
+
+# Major chord first inversion
 
 4-3:
         Rhythm:  1+0/3
+        Bass: 1-12/0
+
+# Major chord second inversion
+
+5-4:
+        Rhythm: All/4
+        Bass: 2-12/0
 
 Any:
         Rhythm:  All/15
-
-       
+        Bass: 1-12/0      

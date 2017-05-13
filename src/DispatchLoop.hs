@@ -34,6 +34,7 @@ import ChordUtils
 import EventUtils
 import LoopConfig
 import ChordMatrix
+import ShowStatus
 
 import WithCli
 
@@ -82,12 +83,15 @@ dispatchLoop h ci opt@Options {channel = chan, config = s} = do
     cfgpath = s,
     cmdly = fromMaybe 10 (cmdelay opt),
     codly = fromMaybe 10 (codelay opt),
-    portmap = DM.empty
+    portmap = DM.empty,
+    statmsg = "",
+    statchg = False
 }
 
 loop :: StateT LoopStatus IO ()
 
 loop = do
+  showstat
   ports <- gets cr >>= (return . listPorts)
   pm <- gets portmap
   let newports = ports DL.\\ DM.keys pm
@@ -118,7 +122,6 @@ loop' e = do
       loop
 
 checkConfig = do
-  lift $ putStrLn "checking config"
   cfgp <- gets cfgpath
   cfgt <- gets cfgtime
   case (cfgp, cfgt) of
@@ -126,7 +129,6 @@ checkConfig = do
       mbnwt <- lift $ getCfgTime fp
       case mbnwt of
         Just nwt -> do
-          lift $ putStrLn ("path " ++ fp ++ " mod time " ++ show ft ++ " new time " ++ show nwt)
           if nwt > ft 
             then do
               crr <- gets cr
@@ -135,7 +137,7 @@ checkConfig = do
               let sucf = case mbxx of
                            Just _ -> "success"
                            Nothing -> "failure"
-              lift $ putStrLn ("reload config " ++ sucf)
+              updstat ("reload config " ++ sucf)
               modify (\s -> s {cr = ncr, cfgtime = Just nwt})
             else return ()
           sendPingDelay' ckcfg 1000000
@@ -155,16 +157,15 @@ handleChords = do
     ChordOn d -> do
       case (IS.size iss `compare` pvll) of
         GT -> do
-          lift $ putStrLn "chord growing while playing ignore"
+          updstat "chord growing while playing ignore"
           sendPingDelay d
           loop
         LT -> do
-          lift $ putStrLn "chord dropping"
+          updstat "chord dropping"
           modify (\s -> s {status = ChordOff, is = IS.empty})
           cancelChord
           loop
         EQ -> do
-          lift $ putStrLn ("chord on " ++ (show $ IS.toList iss))
           modify (\s -> s {status = ChordOn d})
           sendPingDelay d
           loop
@@ -173,16 +174,14 @@ handleChords = do
         modify (\s -> s {status = ChordOff, is = IS.empty})
         loop
       0 -> do
-        lift $ putStrLn "chord empty"
         modify (\s -> s {status = ChordOff})
         cancelChord
         loop
       1 -> do
-        lift $ putStrLn ("single note need more " ++ show dxff)
         modify (\s -> s {status = ChordOff})
         loop
       _ | IS.size iss >= 2 -> do
-        lift $ putStrLn ("two or more notes calibrating delay " ++ show dxff)
+        updstat "chord mature"
         ndxff <- compStats dxff
         let delay = ndxff * 10
         modify (\s -> s {status = Aging delay})
@@ -191,16 +190,13 @@ handleChords = do
     Aging d -> do
       case (IS.size iss `compare` pvll) of
         GT -> do
-          lift $ putStrLn "chord growing"
           sendPingDelay d
           loop
         LT -> do
-          lift $ putStrLn "chord dropping"
           modify (\s -> s {status = ChordOff, is = IS.empty})
           cancelChord
           loop
         EQ -> do
-          lift $ putStrLn ("chord mature " ++ (show $ IS.toList iss))
           modify (\s -> s {status = ChordOn d})
           sendPingDelay d
           crr <- gets cr
@@ -227,7 +223,7 @@ playChords (Just oc) = do
       iss <- gets is
       let pc = buildChord iss oc
       oss <- gets os
-      modify (\s -> s {os = DS.insert (cc, outchan oc, pc) oss})
+      modify (\s -> s {statchg = True, os = DS.insert (outport oc, cc, outchan oc, pc) oss})
       hh <- gets h
       lift $ playChord hh cc (outchan oc) pc True
   playChords $ also oc
@@ -266,14 +262,13 @@ processNote ne note = do
 cancelChord = do
   hh <- gets h
   oss <- gets os
-  forM_ oss $ \(cc, ochan, is) -> lift $ playChord hh cc ochan is False
-  modify (\s -> s {is = IS.empty, os = DS.empty, status = ChordOff })
+  forM_ oss $ \(_, cc, ochan, is) -> lift $ playChord hh cc ochan is False
+  modify (\s -> s {statchg = True, is = IS.empty, os = DS.empty, status = ChordOff })
   loop
 
 sendPingDelay d = sendPingDelay' ping d
 
 sendPingDelay' ppp d = do
-  lift $ putStrLn ("set ping " ++ show d)
   hh <- gets h
   p <- gets ppp
   lift $ forkOS $ do
@@ -300,13 +295,15 @@ compStats d = do
   let keep = if length st > 10 
                then filter (<= (tmean + 3 * tstd)) st 
                else st
+{-
   lift $ putStrLn ("size " ++ show (IS.size samples') ++ 
                    " mean " ++ show tmean ++ 
                    " std " ++ show tstd ++
                    " outliers " ++ show outlrs);
+-}
   let newmean = mean keep
   let newsamp = IS.fromList $ map round keep
   let newsamp' = if IS.size newsamp > 50 then IS.delete (IS.findMax newsamp) newsamp else newsamp
   modify (\s -> s {tsamples = newsamp'})
-  lift $ putStrLn ("new mean " ++ show newmean)
+--  lift $ putStrLn ("new mean " ++ show newmean)
   return $ round newmean

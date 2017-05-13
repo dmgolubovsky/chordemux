@@ -23,7 +23,7 @@ executable chordemux
   -- other-extensions:
   build-depends:       base >=4.8 && <4.9, alsa-seq, alsa-core, transformers, bytestring,
                        containers, time==1.5.0.1, hstats, yaml-config, getopt-generics,
-                       polyparse, text, directory
+                       polyparse, text, directory, ansi-terminal
   hs-source-dirs:      src
   ghc-options:         -threaded
   default-language:    Haskell2010
