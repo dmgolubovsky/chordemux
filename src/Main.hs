@@ -56,5 +56,6 @@ mods = [
   AddOptionHelp "config" "configuration file in YAML format",
   AddOptionHelp "cmdelay" "delay multiplier while chord is maturing",
   AddOptionHelp "codelay" "delay multiplier while chord is on",
+  AddOptionHelp "histlen" "chord history length",
   AddShortOption "config" 'f']
 

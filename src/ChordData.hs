@@ -9,7 +9,11 @@ type Interval = Int
 -- Received chords are matched against the list of input chords to find the dispatch
 -- rules. Additionally, an entry matching any chord may be provided.
 
-data InputChord = AnyChord | Intervals [Interval] | Shorthand String deriving (Show, Eq, Ord)
+data InputChord = AnyChord 
+  | Intervals [Interval] [[Interval]] 
+  | Shorthand String deriving (Show, Eq, Ord)
+
+intervals = flip Intervals ([])
 
 -- Output chord which is represented by the destination channel, and notes to be sent.
 -- Not all notes of the matched chord may need to be sent, it may be an unrelated absolute

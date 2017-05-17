@@ -86,12 +86,18 @@ fromIntervals r is = IS.fromList $ r : (fi r is) where
   fi r (x:xs) = (r + x) : fi (r + x) xs
 
 -- Find how to output a chord given the set of routing rules. If AnyChord entry exists
--- in the map, it is given a last chance.
+-- in the map, it is given a last chance. Considering history, the longest match will be
+-- tried first, ending with the shortest match (a chord without history).
 
-routeChord :: ChordRouting -> InputChord -> Maybe OutputChord
+routeChord :: [[Interval]] -> ChordRouting -> InputChord -> Maybe OutputChord
 
-routeChord cr ic = some `mplus` any where
-  some = DM.lookup ic cr
+routeChord hist cr ic = some `mplus` any where
+  some = tryhist ic
+  tryhist (Intervals is []) = tryhist' (Intervals is hist)
+  tryhist _ = Nothing
+  tryhist' i@(Intervals is []) = DM.lookup i cr
+  tryhist' i@(Intervals is iss) = DM.lookup i cr `mplus` tryhist' (Intervals is $ chop1 iss)
+  chop1 = reverse . tail . reverse
   any = DM.lookup AnyChord cr
 
 -- Build an output chord set of notes based on the input chord notes and the output

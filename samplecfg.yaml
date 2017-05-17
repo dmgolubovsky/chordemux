@@ -30,6 +30,12 @@
         Rhythm: All/4
         Bass: 2-12/0
 
+# Minor 2inv after Minor root
+
+5-3 3-4:
+        Rhythm: All/8
+        Bass: 2-12/0
+
 Any:
         Rhythm:  All/15
         Bass: 1-12/0      

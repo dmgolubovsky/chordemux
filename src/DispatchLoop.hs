@@ -11,10 +11,12 @@ import qualified Sound.ALSA.Sequencer.Port as Port
 import qualified Sound.ALSA.Sequencer.Event as Event
 import qualified Sound.ALSA.Sequencer as SndSeq
 
+import qualified Data.Foldable as DF
 import qualified Data.List as DL
 import qualified Data.Set as DS
 import qualified Data.Map as DM
 import qualified Data.IntSet as IS
+import qualified Data.Sequence as SQ
 import GHC.Word
 import Data.Maybe
 import Data.Time.Clock
@@ -42,7 +44,8 @@ data Options = Options {
   channel :: Maybe Int,
   config :: Maybe String,
   cmdelay :: Maybe Int,
-  codelay :: Maybe Int
+  codelay :: Maybe Int,
+  histlen :: Maybe Int
 } deriving (Show, Generic, HasArguments)
 
 getus :: IO Integer
@@ -56,6 +59,8 @@ loadcr (Just f) = tryLoad f `catch` \(e :: SomeException) -> do
   putStrLn $ show e
   cfgt <- getCfgTime f
   return (chordMatrix, cfgt)
+
+fromMaybeMax n d mbn = max n (fromMaybe d mbn)
 
 dispatchLoop :: SndSeq.T SndSeq.DuplexMode -> 
                 Connect.T -> 
@@ -81,11 +86,14 @@ dispatchLoop h ci opt@Options {channel = chan, config = s} = do
     ckcfg = Nothing,
     cfgtime = mbcfgt,
     cfgpath = s,
-    cmdly = fromMaybe 10 (cmdelay opt),
-    codly = fromMaybe 10 (codelay opt),
+    cmdly = fromMaybeMax 1 10 (cmdelay opt),
+    codly = fromMaybeMax 1 10 (codelay opt),
     portmap = DM.empty,
     statmsg = "",
-    statchg = False
+    statchg = False,
+    chstlen = fromMaybeMax 1 3 (histlen opt),
+    chist = SQ.empty,
+    stats = Stats 0 0 0 0
 }
 
 loop :: StateT LoopStatus IO ()
@@ -200,13 +208,15 @@ handleChords = do
           modify (\s -> s {status = ChordOn d})
           sendPingDelay d
           crr <- gets cr
+          hist <- gets chist >>= return . DF.toList
           let chints = toIntervals iss
-              mboc = routeChord crr (Intervals chints)
+              mboc = routeChord hist crr (intervals chints)
           case mboc of
             Nothing -> do
               modify (\s -> s {status = ChordOff, is = IS.empty })
               loop
             _ -> do
+              addHistory chints
               playChords mboc
               loop
     _ -> loop
@@ -295,15 +305,13 @@ compStats d = do
   let keep = if length st > 10 
                then filter (<= (tmean + 3 * tstd)) st 
                else st
-{-
-  lift $ putStrLn ("size " ++ show (IS.size samples') ++ 
-                   " mean " ++ show tmean ++ 
-                   " std " ++ show tstd ++
-                   " outliers " ++ show outlrs);
--}
   let newmean = mean keep
   let newsamp = IS.fromList $ map round keep
   let newsamp' = if IS.size newsamp > 50 then IS.delete (IS.findMax newsamp) newsamp else newsamp
-  modify (\s -> s {tsamples = newsamp'})
---  lift $ putStrLn ("new mean " ++ show newmean)
+  modify (\s -> s {tsamples = newsamp', stats = Stats {
+                                                  meann = tmean,
+                                                  stddevv = tstd,
+                                                  minn = fromIntegral $ IS.findMin samples',
+                                                  maxx = fromIntegral $ IS.findMax samples'
+                                                      }})
   return $ round newmean
