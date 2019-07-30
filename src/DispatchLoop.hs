@@ -23,7 +23,7 @@ import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Control.Monad
 
-import Numeric.Statistics
+import Statistics
 
 import Control.Exception
 import Control.Concurrent
