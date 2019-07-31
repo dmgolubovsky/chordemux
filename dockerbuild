@@ -1,0 +1,7 @@
+#! /bin/sh
+
+DOCKER_BUILDKIT=1 docker build -t chordemux --progress=plain .
+
+docker run -ti -v `pwd`:/out chordemux:latest cp /root/.local/bin/chordemux /out/dist/build/chordemux
+
+

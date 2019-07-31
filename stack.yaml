@@ -1,0 +1,13 @@
+build:
+  split-objs: true
+resolver: lts-5.0
+flags: {}
+extra-deps: 
+  - yaml-config 
+  - alsa-core-0.5.0.1
+  - alsa-seq-0.6.0.7
+  - enumset-0.0.4.1
+  - poll-0.0.0.1
+  - storable-record-0.0.4
+packages:
+          - .
